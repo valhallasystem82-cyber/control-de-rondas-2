@@ -9,6 +9,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
+  <!-- Librerías Firebase SDK Compatibles -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
   <style>
     * { box-sizing: border-box; }
     body {
@@ -34,7 +38,6 @@
       box-shadow: 0 0 25px rgba(0, 162, 255, 0.4);
     }
 
-    /* ENCABEZADO CON LOGO Y BORDES AZULES */
     .header-contenedor {
       display: flex;
       align-items: center;
@@ -83,7 +86,6 @@
       font-size: 22px;
     }
 
-    /* MAPA VISUAL */
     .mapa-contenedor {
       position: relative;
       width: 100%;
@@ -150,7 +152,6 @@
       z-index: 5;
     }
 
-    /* FORMULARIOS Y CONTROLES */
     .campo { margin-bottom: 12px; }
     label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; }
     
@@ -233,7 +234,6 @@
 <body>
 
 <div class="container" id="areaReporte">
-  <!-- ENCABEZADO CON LOGO Y BORDES AZULES -->
   <div class="header-contenedor">
     <div class="logo-box" onclick="document.getElementById('inputLogo').click()">
       <img id="imgLogo" src="" alt="Logo" style="display:none;">
@@ -244,14 +244,12 @@
     <div style="width: 70px;"></div>
   </div>
 
-  <!-- MAPA DE RONDA -->
   <div class="mapa-contenedor" id="mapaContenedor">
     <svg class="linea-canvas" id="canvasLineas"></svg>
     <img id="imagenMapa" src="" alt="Cargue el plano..." style="display:none;">
     <span id="textoSinMapa" style="color:#aaa;">[ADMIN] Desbloquee el panel para cargar el plano</span>
   </div>
 
-  <!-- BOTÓN Y PANEL DE ADMIN -->
   <button type="button" class="btn btn-admin" onclick="desbloquearAdmin()">🔐 Panel Admin (Asignar Zonas y Mapa)</button>
   
   <div class="panel-admin-box" id="panelAdmin">
@@ -273,7 +271,6 @@
     <p style="font-size: 11px; color: #ffc107;">* Agregue los puntos uno a uno y arrástrelos sobre el plano para ubicarlos dentro del área exacta.</p>
   </div>
 
-  <!-- CONTROLES DE GUARDIA -->
   <button type="button" class="btn-qr" onclick="toggleCamara()">📷 Escanear QR de Zona</button>
   <div id="reader"></div>
 
@@ -337,7 +334,6 @@
   <button type="button" class="btn-email" onclick="enviarEmail()">✉️ Enviar Reporte a Gmail</button>
   <button type="button" class="btn-borrar" onclick="borrarHistorialSupervisor()">🔒 Borrar Historial (Solo Supervisor)</button>
 
-  <!-- GENERADOR DE QRS PARA IMPRIMIR -->
   <div class="seccion-impresion">
     <h3>QRs Generados para las Zonas Asignadas</h3>
     <div id="areaImpresion" class="grid-qrs"></div>
@@ -346,6 +342,21 @@
 </div>
 
 <script>
+  // CONFIGURACIÓN DE FIREBASE INTEGRADAS
+  const firebaseConfig = {
+    apiKey: "AIzaSyCPVGV_HaaROaTKDfnYAcSKaucsWG8sTOo",
+    authDomain: "control-de-ronda-2.firebaseapp.com",
+    databaseURL: "https://control-de-ronda-2-default-rtdb.firebaseio.com",
+    projectId: "control-de-ronda-2",
+    storageBucket: "control-de-ronda-2.firebasestorage.app",
+    messagingSenderId: "991153774922",
+    appId: "1:991153774922:web:a1c02fb216a307aaa6e1b3",
+    measurementId: "G-NE8GSLLQY8"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
   const CLAVE_SUPERVISOR = "1234";
   const TELEFONO_WHATSAPP = "5491112345678";
   const CORREO_GMAIL = "tudireccion@gmail.com";
@@ -358,7 +369,6 @@
   let html5QrCode = null;
   let puntoArrastrandose = null;
 
-  /* FORMATO DE HORA 24 HS */
   function actualizarReloj() {
     const ahora = new Date();
     const dia = String(ahora.getDate()).padStart(2, '0');
@@ -376,66 +386,67 @@
   function inicializar() {
     setInterval(actualizarReloj, 1000);
     actualizarReloj();
-    cargarMemoriaLocal();
+    escucharBaseDeDatos();
+  }
+
+  function escucharBaseDeDatos() {
+    db.ref('config').on('value', (snapshot) => {
+      const config = snapshot.val();
+      if (config) {
+        if (config.logo) {
+          const img = document.getElementById('imgLogo');
+          img.src = config.logo;
+          img.style.display = 'block';
+          document.getElementById('txtLogo').style.display = 'none';
+        }
+        if (config.mapa) {
+          const img = document.getElementById('imagenMapa');
+          img.src = config.mapa;
+          img.style.display = 'block';
+          document.getElementById('textoSinMapa').style.display = 'none';
+        }
+        if (config.puntos) {
+          puntosPosiciones = config.puntos;
+        } else {
+          puntosPosiciones = [
+            { zona: 1, x: 20, y: 30, escaneado: false },
+            { zona: 2, x: 50, y: 30, escaneado: false }
+          ];
+        }
+        if (config.zonaEsperada !== undefined) {
+          zonaEsperadaNum = config.zonaEsperada;
+        }
+
+        actualizarInterfazZona();
+        renderizarPuntosMapa();
+        generarQRsZonas();
+      }
+    });
+
+    db.ref('historial').on('value', (snapshot) => {
+      const data = snapshot.val();
+      historialRegistros = [];
+      if (data) {
+        Object.keys(data).forEach(key => {
+          historialRegistros.push(data[key]);
+        });
+      }
+      renderizarTabla();
+    });
+  }
+
+  function guardarConfiguracionFirebase() {
+    db.ref('config/puntos').set(puntosPosiciones);
+    db.ref('config/zonaEsperada').set(zonaEsperadaNum);
   }
 
   function cargarLogo(e) {
     const reader = new FileReader();
     reader.onload = function(event) {
-      const img = document.getElementById('imgLogo');
-      img.src = event.target.result;
-      img.style.display = 'block';
-      document.getElementById('txtLogo').style.display = 'none';
-      localStorage.setItem('app_logo_b64', event.target.result);
+      const base64 = event.target.result;
+      db.ref('config/logo').set(base64);
     };
     reader.readAsDataURL(e.target.files[0]);
-  }
-
-  function cargarMemoriaLocal() {
-    const logoGuardado = localStorage.getItem('app_logo_b64');
-    if (logoGuardado) {
-      const img = document.getElementById('imgLogo');
-      img.src = logoGuardado;
-      img.style.display = 'block';
-      document.getElementById('txtLogo').style.display = 'none';
-    }
-
-    const historialGuardado = localStorage.getItem('historial_ronda');
-    if (historialGuardado) {
-      historialRegistros = JSON.parse(historialGuardado);
-      renderizarTabla();
-    }
-
-    const zonaGuardada = localStorage.getItem('zona_esperada');
-    if (zonaGuardada) zonaEsperadaNum = parseInt(zonaGuardada);
-
-    const puntosGuardados = localStorage.getItem('zonas_posiciones_mapa');
-    if (puntosGuardados) {
-      puntosPosiciones = JSON.parse(puntosGuardados);
-    } else {
-      puntosPosiciones = [
-        { zona: 1, x: 20, y: 30, escaneado: false },
-        { zona: 2, x: 50, y: 30, escaneado: false }
-      ];
-    }
-
-    const planoGuardado = localStorage.getItem('mapa_imagen_b64');
-    if (planoGuardado) {
-      const img = document.getElementById('imagenMapa');
-      img.src = planoGuardado;
-      img.style.display = 'block';
-      document.getElementById('textoSinMapa').style.display = 'none';
-    }
-
-    actualizarInterfazZona();
-    renderizarPuntosMapa();
-    generarQRsZonas();
-  }
-
-  function guardarMemoriaLocal() {
-    localStorage.setItem('historial_ronda', JSON.stringify(historialRegistros));
-    localStorage.setItem('zona_esperada', zonaEsperadaNum);
-    localStorage.setItem('zonas_posiciones_mapa', JSON.stringify(puntosPosiciones));
   }
 
   function actualizarInterfazZona() {
@@ -443,7 +454,6 @@
     document.getElementById('numSiguienteZona').innerText = puntosPosiciones.length + 1;
   }
 
-  /* PANEL ADMIN: AGREGAR MANUAL Y DESHACER */
   function desbloquearAdmin() {
     if (esAdminDesbloqueado) {
       document.getElementById('panelAdmin').style.display = 'none';
@@ -463,12 +473,8 @@
   function cargarMapaImagen(e) {
     const reader = new FileReader();
     reader.onload = function(event) {
-      const img = document.getElementById('imagenMapa');
-      img.src = event.target.result;
-      img.style.display = 'block';
-      document.getElementById('textoSinMapa').style.display = 'none';
-      localStorage.setItem('mapa_imagen_b64', event.target.result);
-      dibujarLineasMapa();
+      const base64 = event.target.result;
+      db.ref('config/mapa').set(base64);
     };
     reader.readAsDataURL(e.target.files[0]);
   }
@@ -482,10 +488,7 @@
       escaneado: false
     });
 
-    guardarMemoriaLocal();
-    actualizarInterfazZona();
-    renderizarPuntosMapa();
-    generarQRsZonas();
+    guardarConfiguracionFirebase();
   }
 
   function deshacerUltimoPunto() {
@@ -501,13 +504,9 @@
       zonaEsperadaNum = 1;
     }
 
-    guardarMemoriaLocal();
-    actualizarInterfazZona();
-    renderizarPuntosMapa();
-    generarQRsZonas();
+    guardarConfiguracionFirebase();
   }
 
-  /* RENDERING Y CONTROL PARA QUE NO SALGA DEL MAPA */
   function renderizarPuntosMapa() {
     const contenedor = document.getElementById('mapaContenedor');
     document.querySelectorAll('.punto-estacion, .etiqueta-zona').forEach(el => el.remove());
@@ -591,7 +590,6 @@
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-    /* RESTRICCIÓN DENTRO DEL CONTENEDOR (0% A 100%) */
     let posX = ((clientX - rect.left) / rect.width) * 100;
     let posY = ((clientY - rect.top) / rect.height) * 100;
 
@@ -614,7 +612,7 @@
 
   function detenerArrastre() {
     if (puntoArrastrandose) {
-      guardarMemoriaLocal();
+      guardarConfiguracionFirebase();
       puntoArrastrandose = null;
     }
     window.removeEventListener('mousemove', moverPunto);
@@ -623,7 +621,6 @@
     window.removeEventListener('touchend', detenerArrastre);
   }
 
-  /* ESCÁNER Y REGISTRO */
   function toggleCamara() {
     const readerDiv = document.getElementById('reader');
     if (readerDiv.style.display === 'block') {
@@ -693,7 +690,7 @@
       observacion: document.getElementById('observaciones').value || 'Sin novedades'
     };
 
-    historialRegistros.push(registro);
+    db.ref('historial').push(registro);
 
     if (zonaEsperadaNum >= puntosPosiciones.length) {
       alert(`¡Completó todas las zonas! La ronda ha finalizado con éxito. El mapa y la secuencia se reiniciarán automáticamente.`);
@@ -703,10 +700,7 @@
       zonaEsperadaNum++;
     }
 
-    actualizarInterfazZona();
-    guardarMemoriaLocal();
-    renderizarPuntosMapa();
-    renderizarTabla();
+    guardarConfiguracionFirebase();
 
     qrEscaneadoValido = false;
     document.getElementById('direccionCalleGPS').value = '';
@@ -715,7 +709,6 @@
     alert(`¡${registro.zona} registrada con éxito!`);
   });
 
-  /* NAVEGACIÓN Y OBTENCIÓN MEJORADA DE CALLE EXACTA VÍA GPS */
   function obtenerCalleExactaGPS() {
     const inputGPS = document.getElementById('direccionCalleGPS');
     if (!("geolocation" in navigator)) {
@@ -774,14 +767,11 @@
   function borrarHistorialSupervisor() {
     if (prompt("Ingrese PIN de Supervisor:") === CLAVE_SUPERVISOR) {
       if (confirm("¿Borrar todo el historial y reiniciar secuencia?")) {
-        historialRegistros = [];
         zonaEsperadaNum = 1;
         puntosPosiciones.forEach(p => p.escaneado = false);
-        localStorage.removeItem('historial_ronda');
-        guardarMemoriaLocal();
-        actualizarInterfazZona();
-        renderizarPuntosMapa();
-        renderizarTabla();
+        
+        db.ref('historial').remove();
+        guardarConfiguracionFirebase();
       }
     } else {
       alert("❌ PIN Incorrecto");
