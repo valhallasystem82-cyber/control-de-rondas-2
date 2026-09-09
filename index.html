@@ -86,25 +86,24 @@
       font-size: 22px;
     }
 
+    /* MAPA AUTORESPONSIVO QUE SE ADAPTA A CUALQUIER PANTALLA */
     .mapa-contenedor {
       position: relative;
       width: 100%;
-      height: 550px;
+      height: auto; /* Permite adaptarse a la imagen */
+      min-height: 250px;
       background-color: #050811;
       border: 2px solid #00a2ff;
       border-radius: 8px;
       overflow: hidden;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      display: block;
       margin-bottom: 15px;
       user-select: none;
     }
 
     #imagenMapa {
       width: 100%;
-      height: 100%;
-      object-fit: contain;
+      height: auto; /* Mantiene exactamente la proporcion en PC y Celular */
       display: block;
       opacity: 0.85;
       pointer-events: none;
@@ -245,9 +244,9 @@
   </div>
 
   <div class="mapa-contenedor" id="mapaContenedor">
-    <svg class="linea-canvas" id="canvasLineas"></svg>
+    <svg class="linea-canvas" id="canvasLineas" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
     <img id="imagenMapa" src="" alt="Cargue el plano..." style="display:none;">
-    <span id="textoSinMapa" style="color:#aaa;">[ADMIN] Desbloquee el panel para cargar el plano</span>
+    <span id="textoSinMapa" style="color:#aaa; display:block; padding:20px; text-align:center;">[ADMIN] Desbloquee el panel para cargar el plano</span>
   </div>
 
   <button type="button" class="btn btn-admin" onclick="desbloquearAdmin()">🔐 Panel Admin (Asignar Zonas y Mapa)</button>
@@ -373,7 +372,7 @@
     const ahora = new Date();
     const dia = String(ahora.getDate()).padStart(2, '0');
     const mes = String(ahora.getMonth() + 1).padStart(2, '0');
-    const anio = ahora.getFullYear();
+    const anio = me = ahora.getFullYear();
 
     const horas = String(ahora.getHours()).padStart(2, '0');
     const minutos = String(ahora.getMinutes()).padStart(2, '0');
@@ -540,21 +539,17 @@
 
   function dibujarLineasMapa() {
     const svg = document.getElementById('canvasLineas');
-    const contenedor = document.getElementById('mapaContenedor');
-    const w = contenedor.clientWidth;
-    const h = contenedor.clientHeight;
-
     svg.innerHTML = '';
-    if (puntosPosiciones.length < 2 || w === 0) return;
+    if (puntosPosiciones.length < 2) return;
 
     for (let i = 0; i < puntosPosiciones.length - 1; i++) {
       const pOrigen = puntosPosiciones[i];
       const pDestino = puntosPosiciones[i + 1];
 
-      const x1 = (parseFloat(pOrigen.x) / 100) * w;
-      const y1 = (parseFloat(pOrigen.y) / 100) * h;
-      const x2 = (parseFloat(pDestino.x) / 100) * w;
-      const y2 = (parseFloat(pDestino.y) / 100) * h;
+      const x1 = parseFloat(pOrigen.x);
+      const y1 = parseFloat(pOrigen.y);
+      const x2 = parseFloat(pDestino.x);
+      const y2 = parseFloat(pDestino.y);
 
       const tramoCompletado = pOrigen.escaneado && pDestino.escaneado;
       const colorTramo = tramoCompletado ? '#00ff66' : '#ff3333';
@@ -565,7 +560,7 @@
       linea.setAttribute('x2', x2);
       linea.setAttribute('y2', y2);
       linea.setAttribute('stroke', colorTramo);
-      linea.setAttribute('stroke-width', '4');
+      linea.setAttribute('stroke-width', '0.8');
       linea.setAttribute('stroke-linecap', 'round');
 
       svg.appendChild(linea);
