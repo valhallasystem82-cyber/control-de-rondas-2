@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control de ronda en tiempo real</title>
+
+  <!-- Librerías QR -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #050811 url('valhallasystem.png') no-repeat center center fixed;
+      background-size: cover;
+      padding: 15px 10px;
+      margin: 0;
+      color: #ffffff;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      background: rgba(10, 15, 28, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 20px;
+      border-radius: 16px;
+      border-left: 6px solid #00a2ff;
+      border-right: 6px solid #00a2ff;
+      border-top: 2px solid #00a2ff;
+      border-bottom: 2px solid #00a2ff;
+      box-shadow: 0 0 25px rgba(0, 162, 255, 0.4);
+    }
+
+    /* ENCABEZADO CON LOGO Y BORDES AZULES */
+    .header-contenedor {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid #00a2ff;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+      gap: 15px;
+    }
+
+    .logo-box {
+      width: 70px;
+      height: 70px;
+      border: 2px dashed #00a2ff;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 162, 255, 0.1);
+      cursor: pointer;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .logo-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .logo-box span {
+      font-size: 10px;
+      color: #00a2ff;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    h2 {
+      flex: 1;
+      text-align: center;
+      color: #ffffff;
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      text-shadow: 0 0 10px #0084ff;
+      font-size: 22px;
+    }
+
+    /* MAPA VISUAL */
+    .mapa-contenedor {
+      position: relative;
+      width: 100%;
+      height: 550px;
+      background-color: #050811;
+      border: 2px solid #00a2ff;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 15px;
+      user-select: none;
+    }
+
+    #imagenMapa {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      opacity: 0.85;
+      pointer-events: none;
+    }
+
+    .punto-estacion {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #ff3333;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 8px #ff0000;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+      transition: background 0.3s, box-shadow 0.3s;
+      z-index: 10;
+    }
+
+    .punto-estacion.escaneado {
+      background: #00ff66 !important;
+      box-shadow: 0 0 15px #00ff66, 0 0 25px #00ff66 !important;
+    }
+
+    .etiqueta-zona {
+      position: absolute;
+      font-size: 11px;
+      font-weight: bold;
+      color: #ffffff;
+      background: rgba(0,0,0,0.85);
+      padding: 2px 5px;
+      border-radius: 4px;
+      transform: translate(-50%, -150%);
+      white-space: nowrap;
+      pointer-events: none;
+      border: 1px solid #00a2ff;
+      z-index: 11;
+    }
+
+    svg.linea-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* FORMULARIOS Y CONTROLES */
+    .campo { margin-bottom: 12px; }
+    label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; }
+    
+    input, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #00a2ff;
+      border-radius: 6px;
+      font-size: 14px;
+      background-color: #0d1626;
+      color: #ffffff;
+      outline: none;
+    }
+
+    input[readonly] { background-color: #000000 !important; color: #00e1ff !important; font-weight: bold; }
+    .row { display: flex; gap: 8px; }
+    .row > div { flex: 1; }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      color: white;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+      border-radius: 6px;
+      text-transform: uppercase;
+      font-size: 13px;
+    }
+
+    .btn-qr { background-color: #007bff; margin-bottom: 10px; font-size: 14px; }
+    .btn-gps { background-color: #17a2b8; margin-top: 6px; }
+    .btn-guardar { background-color: #28a745; margin-top: 15px; font-size: 15px; }
+    .btn-whatsapp { background-color: #25D366; margin-top: 10px; }
+    .btn-email { background-color: #EA4335; margin-top: 8px; }
+    .btn-borrar { background-color: #dc3545; margin-top: 12px; font-size: 12px; padding: 8px; }
+    .btn-admin { background-color: #ffc107; color: #000; margin-bottom: 15px; }
+    .btn-accion-admin { background-color: #17a2b8; color: #fff; margin-top: 5px; }
+    .btn-deshacer { background-color: #dc3545; color: #fff; margin-top: 5px; }
+
+    #reader { width: 100%; background: #000; border-radius: 8px; overflow: hidden; margin-bottom: 15px; display: none; }
+
+    .historial-tabla {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+      font-size: 11px;
+      background: #08101d;
+      border: 1px solid #00a2ff;
+    }
+
+    .historial-tabla th, .historial-tabla td {
+      border: 1px solid #0056b3;
+      padding: 6px;
+      text-align: left;
+    }
+
+    .historial-tabla th { background-color: #004488; }
+
+    .panel-admin-box {
+      display: none;
+      background: #090d16;
+      border: 2px dashed #ffc107;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+
+    .seccion-impresion { margin-top: 20px; border-top: 1px solid #00a2ff; padding-top: 15px; }
+    .grid-qrs { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 10px; }
+    .tarjeta-qr { background: white; color: black; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; }
+
+    @media print {
+      body * { visibility: hidden; }
+      #areaImpresion, #areaImpresion * { visibility: visible; }
+      #areaImpresion { position: absolute; left: 0; top: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container" id="areaReporte">
+  <!-- ENCABEZADO CON LOGO Y BORDES AZULES -->
+  <div class="header-contenedor">
+    <div class="logo-box" onclick="document.getElementById('inputLogo').click()">
+      <img id="imgLogo" src="" alt="Logo" style="display:none;">
+      <span id="txtLogo">SELECCIONAR LOGO</span>
+      <input type="file" id="inputLogo" accept="image/*" style="display:none;" onchange="cargarLogo(event)">
+    </div>
+    <h2>Control de ronda en tiempo real</h2>
+    <div style="width: 70px;"></div>
+  </div>
+
+  <!-- MAPA DE RONDA -->
+  <div class="mapa-contenedor" id="mapaContenedor">
+    <svg class="linea-canvas" id="canvasLineas"></svg>
+    <img id="imagenMapa" src="" alt="Cargue el plano..." style="display:none;">
+    <span id="textoSinMapa" style="color:#aaa;">[ADMIN] Desbloquee el panel para cargar el plano</span>
+  </div>
+
+  <!-- BOTÓN Y PANEL DE ADMIN -->
+  <button type="button" class="btn btn-admin" onclick="desbloquearAdmin()">🔐 Panel Admin (Asignar Zonas y Mapa)</button>
+  
+  <div class="panel-admin-box" id="panelAdmin">
+    <h3>Configuración del Administrador</h3>
+    <div class="campo">
+      <label>Cargar Plano (JPG/PNG):</label>
+      <input type="file" id="inputMapa" accept="image/*" onchange="cargarMapaImagen(event)">
+    </div>
+
+    <div class="campo row">
+      <div>
+        <button type="button" class="btn-accion-admin" onclick="agregarUnPunto()">➕ Agregar 1 Punto (Zona <span id="numSiguienteZona">1</span>)</button>
+      </div>
+      <div>
+        <button type="button" class="btn-deshacer" onclick="deshacerUltimoPunto()">↩️ Deshacer Último Punto</button>
+      </div>
+    </div>
+
+    <p style="font-size: 11px; color: #ffc107;">* Agregue los puntos uno a uno y arrástrelos sobre el plano para ubicarlos dentro del área exacta.</p>
+  </div>
+
+  <!-- CONTROLES DE GUARDIA -->
+  <button type="button" class="btn-qr" onclick="toggleCamara()">📷 Escanear QR de Zona</button>
+  <div id="reader"></div>
+
+  <form id="formRonda">
+    <div class="campo row">
+      <div>
+        <label>Nombre:</label>
+        <input type="text" id="nombre" placeholder="Nombre" required>
+      </div>
+      <div>
+        <label>Apellido:</label>
+        <input type="text" id="apellido" placeholder="Apellido" required>
+      </div>
+    </div>
+
+    <div class="campo row">
+      <div>
+        <label>Fecha Actual:</label>
+        <input type="text" id="fecha" readonly>
+      </div>
+      <div>
+        <label>Hora Exacta (24 hs):</label>
+        <input type="text" id="hora" readonly>
+      </div>
+    </div>
+
+    <div class="campo">
+      <label>Zona requerida en secuencia:</label>
+      <input type="text" id="zonaRequerida" readonly>
+    </div>
+
+    <div class="campo">
+      <label>Ubicación Calle Exacta (GPS):</label>
+      <input type="text" id="direccionCalleGPS" placeholder="Presione el botón para obtener GPS o escriba la dirección aquí" required>
+      <button type="button" class="btn-gps" onclick="obtenerCalleExactaGPS()">📍 Obtener Calle Exacta por GPS</button>
+    </div>
+
+    <div class="campo">
+      <label>Observaciones / Novedades:</label>
+      <textarea id="observaciones" placeholder="Novedades..."></textarea>
+    </div>
+
+    <button type="submit" class="btn-guardar">Registrar Punto de Ronda</button>
+  </form>
+
+  <h3>Historial de Ronda</h3>
+  <table class="historial-tabla">
+    <thead>
+      <tr>
+        <th>Zona</th>
+        <th>Guardia</th>
+        <th>Fecha/Hora</th>
+        <th>Ubicación Exacta</th>
+        <th>Obs</th>
+      </tr>
+    </thead>
+    <tbody id="tablaHistorial"></tbody>
+  </table>
+
+  <button type="button" class="btn-whatsapp" onclick="enviarWhatsApp()">📲 Enviar Reporte a WhatsApp</button>
+  <button type="button" class="btn-email" onclick="enviarEmail()">✉️ Enviar Reporte a Gmail</button>
+  <button type="button" class="btn-borrar" onclick="borrarHistorialSupervisor()">🔒 Borrar Historial (Solo Supervisor)</button>
+
+  <!-- GENERADOR DE QRS PARA IMPRIMIR -->
+  <div class="seccion-impresion">
+    <h3>QRs Generados para las Zonas Asignadas</h3>
+    <div id="areaImpresion" class="grid-qrs"></div>
+    <button type="button" style="background:#6c757d; margin-top:10px;" onclick="window.print()">🖨️ Imprimir QRs</button>
+  </div>
+</div>
+
+<script>
+  const CLAVE_SUPERVISOR = "1234";
+  const TELEFONO_WHATSAPP = "5491112345678";
+  const CORREO_GMAIL = "tudireccion@gmail.com";
+
+  let zonaEsperadaNum = 1;
+  let puntosPosiciones = [];
+  let esAdminDesbloqueado = false;
+  let qrEscaneadoValido = false;
+  let historialRegistros = [];
+  let html5QrCode = null;
+  let puntoArrastrandose = null;
+
+  /* FORMATO DE HORA 24 HS */
+  function actualizarReloj() {
+    const ahora = new Date();
+    const dia = String(ahora.getDate()).padStart(2, '0');
+    const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+    const anio = ahora.getFullYear();
+
+    const horas = String(ahora.getHours()).padStart(2, '0');
+    const minutos = String(ahora.getMinutes()).padStart(2, '0');
+    const segundos = String(ahora.getSeconds()).padStart(2, '0');
+
+    document.getElementById('fecha').value = `${dia}/${mes}/${anio}`;
+    document.getElementById('hora').value = `${horas}:${minutos}:${segundos} hs`;
+  }
+
+  function inicializar() {
+    setInterval(actualizarReloj, 1000);
+    actualizarReloj();
+    cargarMemoriaLocal();
+  }
+
+  function cargarLogo(e) {
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      const img = document.getElementById('imgLogo');
+      img.src = event.target.result;
+      img.style.display = 'block';
+      document.getElementById('txtLogo').style.display = 'none';
+      localStorage.setItem('app_logo_b64', event.target.result);
+    };
+    reader.readAsDataURL(e.target.files[0]);
+  }
+
+  function cargarMemoriaLocal() {
+    const logoGuardado = localStorage.getItem('app_logo_b64');
+    if (logoGuardado) {
+      const img = document.getElementById('imgLogo');
+      img.src = logoGuardado;
+      img.style.display = 'block';
+      document.getElementById('txtLogo').style.display = 'none';
+    }
+
+    const historialGuardado = localStorage.getItem('historial_ronda');
+    if (historialGuardado) {
+      historialRegistros = JSON.parse(historialGuardado);
+      renderizarTabla();
+    }
+
+    const zonaGuardada = localStorage.getItem('zona_esperada');
+    if (zonaGuardada) zonaEsperadaNum = parseInt(zonaGuardada);
+
+    const puntosGuardados = localStorage.getItem('zonas_posiciones_mapa');
+    if (puntosGuardados) {
+      puntosPosiciones = JSON.parse(puntosGuardados);
+    } else {
+      puntosPosiciones = [
+        { zona: 1, x: 20, y: 30, escaneado: false },
+        { zona: 2, x: 50, y: 30, escaneado: false }
+      ];
+    }
+
+    const planoGuardado = localStorage.getItem('mapa_imagen_b64');
+    if (planoGuardado) {
+      const img = document.getElementById('imagenMapa');
+      img.src = planoGuardado;
+      img.style.display = 'block';
+      document.getElementById('textoSinMapa').style.display = 'none';
+    }
+
+    actualizarInterfazZona();
+    renderizarPuntosMapa();
+    generarQRsZonas();
+  }
+
+  function guardarMemoriaLocal() {
+    localStorage.setItem('historial_ronda', JSON.stringify(historialRegistros));
+    localStorage.setItem('zona_esperada', zonaEsperadaNum);
+    localStorage.setItem('zonas_posiciones_mapa', JSON.stringify(puntosPosiciones));
+  }
+
+  function actualizarInterfazZona() {
+    document.getElementById('zonaRequerida').value = `Zona ${zonaEsperadaNum}`;
+    document.getElementById('numSiguienteZona').innerText = puntosPosiciones.length + 1;
+  }
+
+  /* PANEL ADMIN: AGREGAR MANUAL Y DESHACER */
+  function desbloquearAdmin() {
+    if (esAdminDesbloqueado) {
+      document.getElementById('panelAdmin').style.display = 'none';
+      esAdminDesbloqueado = false;
+      return;
+    }
+    const pin = prompt("Ingrese PIN de Administrador:");
+    if (pin === CLAVE_SUPERVISOR) {
+      esAdminDesbloqueado = true;
+      document.getElementById('panelAdmin').style.display = 'block';
+      renderizarPuntosMapa();
+    } else if (pin !== null) {
+      alert("❌ PIN Incorrecto");
+    }
+  }
+
+  function cargarMapaImagen(e) {
+    const reader = new FileReader();
+    reader.onload = function(event) {
+      const img = document.getElementById('imagenMapa');
+      img.src = event.target.result;
+      img.style.display = 'block';
+      document.getElementById('textoSinMapa').style.display = 'none';
+      localStorage.setItem('mapa_imagen_b64', event.target.result);
+      dibujarLineasMapa();
+    };
+    reader.readAsDataURL(e.target.files[0]);
+  }
+
+  function agregarUnPunto() {
+    const nuevaZonaNum = puntosPosiciones.length + 1;
+    puntosPosiciones.push({
+      zona: nuevaZonaNum,
+      x: 50,
+      y: 50,
+      escaneado: false
+    });
+
+    guardarMemoriaLocal();
+    actualizarInterfazZona();
+    renderizarPuntosMapa();
+    generarQRsZonas();
+  }
+
+  function deshacerUltimoPunto() {
+    if (puntosPosiciones.length === 0) {
+      alert("No hay puntos para eliminar.");
+      return;
+    }
+
+    puntosPosiciones.pop();
+    if (zonaEsperadaNum > puntosPosiciones.length && puntosPosiciones.length > 0) {
+      zonaEsperadaNum = puntosPosiciones.length;
+    } else if (puntosPosiciones.length === 0) {
+      zonaEsperadaNum = 1;
+    }
+
+    guardarMemoriaLocal();
+    actualizarInterfazZona();
+    renderizarPuntosMapa();
+    generarQRsZonas();
+  }
+
+  /* RENDERING Y CONTROL PARA QUE NO SALGA DEL MAPA */
+  function renderizarPuntosMapa() {
+    const contenedor = document.getElementById('mapaContenedor');
+    document.querySelectorAll('.punto-estacion, .etiqueta-zona').forEach(el => el.remove());
+
+    puntosPosiciones.forEach(p => {
+      const led = document.createElement('div');
+      led.className = `punto-estacion ${p.escaneado ? 'escaneado' : ''}`;
+      led.style.left = `${p.x}%`;
+      led.style.top = `${p.y}%`;
+      led.dataset.zona = p.zona;
+
+      if (esAdminDesbloqueado) {
+        led.style.cursor = 'grab';
+        led.addEventListener('mousedown', iniciarArrastre);
+        led.addEventListener('touchstart', iniciarArrastre, { passive: false });
+      }
+
+      const lbl = document.createElement('div');
+      lbl.className = 'etiqueta-zona';
+      lbl.id = `lbl_z_${p.zona}`;
+      lbl.style.left = `${p.x}%`;
+      lbl.style.top = `${p.y}%`;
+      lbl.innerText = `Z${p.zona}`;
+
+      contenedor.appendChild(led);
+      contenedor.appendChild(lbl);
+    });
+
+    dibujarLineasMapa();
+  }
+
+  function dibujarLineasMapa() {
+    const svg = document.getElementById('canvasLineas');
+    const contenedor = document.getElementById('mapaContenedor');
+    const w = contenedor.clientWidth;
+    const h = contenedor.clientHeight;
+
+    svg.innerHTML = '';
+    if (puntosPosiciones.length < 2 || w === 0) return;
+
+    for (let i = 0; i < puntosPosiciones.length - 1; i++) {
+      const pOrigen = puntosPosiciones[i];
+      const pDestino = puntosPosiciones[i + 1];
+
+      const x1 = (parseFloat(pOrigen.x) / 100) * w;
+      const y1 = (parseFloat(pOrigen.y) / 100) * h;
+      const x2 = (parseFloat(pDestino.x) / 100) * w;
+      const y2 = (parseFloat(pDestino.y) / 100) * h;
+
+      const tramoCompletado = pOrigen.escaneado && pDestino.escaneado;
+      const colorTramo = tramoCompletado ? '#00ff66' : '#ff3333';
+
+      const linea = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      linea.setAttribute('x1', x1);
+      linea.setAttribute('y1', y1);
+      linea.setAttribute('x2', x2);
+      linea.setAttribute('y2', y2);
+      linea.setAttribute('stroke', colorTramo);
+      linea.setAttribute('stroke-width', '4');
+      linea.setAttribute('stroke-linecap', 'round');
+
+      svg.appendChild(linea);
+    }
+  }
+
+  function iniciarArrastre(e) {
+    if (!esAdminDesbloqueado) return;
+    e.preventDefault();
+    const numZona = parseInt(this.dataset.zona);
+    puntoArrastrandose = puntosPosiciones.find(p => p.zona === numZona);
+
+    window.addEventListener('mousemove', moverPunto);
+    window.addEventListener('mouseup', detenerArrastre);
+    window.addEventListener('touchmove', moverPunto, { passive: false });
+    window.addEventListener('touchend', detenerArrastre);
+  }
+
+  function moverPunto(e) {
+    if (!puntoArrastrandose) return;
+    const rect = document.getElementById('mapaContenedor').getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    /* RESTRICCIÓN DENTRO DEL CONTENEDOR (0% A 100%) */
+    let posX = ((clientX - rect.left) / rect.width) * 100;
+    let posY = ((clientY - rect.top) / rect.height) * 100;
+
+    posX = Math.max(2, Math.min(98, posX));
+    posY = Math.max(3, Math.min(97, posY));
+
+    puntoArrastrandose.x = posX.toFixed(2);
+    puntoArrastrandose.y = posY.toFixed(2);
+
+    const ledEl = document.querySelector(`.punto-estacion[data-zona="${puntoArrastrandose.zona}"]`);
+    const lblEl = document.getElementById(`lbl_z_${puntoArrastrandose.zona}`);
+    if (ledEl && lblEl) {
+      ledEl.style.left = `${posX}%`;
+      ledEl.style.top = `${posY}%`;
+      lblEl.style.left = `${posX}%`;
+      lblEl.style.top = `${posY}%`;
+    }
+    dibujarLineasMapa();
+  }
+
+  function detenerArrastre() {
+    if (puntoArrastrandose) {
+      guardarMemoriaLocal();
+      puntoArrastrandose = null;
+    }
+    window.removeEventListener('mousemove', moverPunto);
+    window.removeEventListener('mouseup', detenerArrastre);
+    window.removeEventListener('touchmove', moverPunto);
+    window.removeEventListener('touchend', detenerArrastre);
+  }
+
+  /* ESCÁNER Y REGISTRO */
+  function toggleCamara() {
+    const readerDiv = document.getElementById('reader');
+    if (readerDiv.style.display === 'block') {
+      detenerCamara();
+    } else {
+      readerDiv.style.display = 'block';
+      html5QrCode = new Html5Qrcode("reader");
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        onScanSuccess
+      ).catch(err => {
+        alert("Error al abrir cámara: " + err);
+        readerDiv.style.display = 'none';
+      });
+    }
+  }
+
+  function detenerCamara() {
+    if (html5QrCode) {
+      html5QrCode.stop().then(() => {
+        document.getElementById('reader').style.display = 'none';
+      }).catch(err => console.error(err));
+    }
+  }
+
+  function onScanSuccess(decodedText) {
+    const match = decodedText.trim().toUpperCase().match(/ZONA[_\s\-]?(\d+)/);
+    if (match) {
+      const numZonaEscaneada = parseInt(match[1]);
+      if (numZonaEscaneada === zonaEsperadaNum) {
+        qrEscaneadoValido = true;
+        alert(`✓ QR de Zona ${numZonaEscaneada} escaneado correctamente.`);
+        detenerCamara();
+      } else {
+        alert(`❌ Código equivocado. Debe escanear Zona ${zonaEsperadaNum} (Escaneó Zona ${numZonaEscaneada}).`);
+      }
+    } else {
+      alert("El código QR no corresponde a un punto de ronda.");
+    }
+  }
+
+  document.getElementById('formRonda').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    if (!qrEscaneadoValido) {
+      alert(`Primero debe escanear el código QR de Zona ${zonaEsperadaNum}.`);
+      return;
+    }
+
+    const direccionIngresada = document.getElementById('direccionCalleGPS').value.trim();
+    if (!direccionIngresada) {
+      alert("Ingrese la ubicación o presione 'Obtener Calle Exacta por GPS' antes de guardar.");
+      return;
+    }
+
+    const idx = puntosPosiciones.findIndex(p => p.zona === zonaEsperadaNum);
+    if (idx !== -1) puntosPosiciones[idx].escaneado = true;
+
+    const registro = {
+      zona: `Zona ${zonaEsperadaNum}`,
+      nombre: document.getElementById('nombre').value,
+      apellido: document.getElementById('apellido').value,
+      fecha: document.getElementById('fecha').value,
+      hora: document.getElementById('hora').value,
+      ubicacion: direccionIngresada,
+      observacion: document.getElementById('observaciones').value || 'Sin novedades'
+    };
+
+    historialRegistros.push(registro);
+
+    if (zonaEsperadaNum >= puntosPosiciones.length) {
+      alert(`¡Completó todas las zonas! La ronda ha finalizado con éxito. El mapa y la secuencia se reiniciarán automáticamente.`);
+      puntosPosiciones.forEach(p => p.escaneado = false);
+      zonaEsperadaNum = 1;
+    } else {
+      zonaEsperadaNum++;
+    }
+
+    actualizarInterfazZona();
+    guardarMemoriaLocal();
+    renderizarPuntosMapa();
+    renderizarTabla();
+
+    qrEscaneadoValido = false;
+    document.getElementById('direccionCalleGPS').value = '';
+    document.getElementById('observaciones').value = '';
+
+    alert(`¡${registro.zona} registrada con éxito!`);
+  });
+
+  /* NAVEGACIÓN Y OBTENCIÓN MEJORADA DE CALLE EXACTA VÍA GPS */
+  function obtenerCalleExactaGPS() {
+    const inputGPS = document.getElementById('direccionCalleGPS');
+    if (!("geolocation" in navigator)) {
+      alert("Su dispositivo no soporta geolocalización.");
+      return;
+    }
+    inputGPS.value = "Obteniendo coordenadas...";
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1`);
+          const data = await res.json();
+          if (data && data.address) {
+            const a = data.address;
+            const calle = a.road || a.pedestrian || a.suburb || "Calle sin nombre";
+            const altura = a.house_number ? ` ${a.house_number}` : "";
+            const localidad = a.suburb || a.neighbourhood || a.city_district || a.town || "";
+            const ciudad = a.city || a.county || "";
+
+            const direccionFormateada = `${calle}${altura}${localidad ? ', ' + localidad : ''}${ciudad ? ', ' + ciudad : ''}`;
+            inputGPS.value = direccionFormateada.trim() || `Lat: ${lat.toFixed(5)}, Lon: ${lon.toFixed(5)}`;
+          } else {
+            inputGPS.value = `Lat: ${lat.toFixed(5)}, Lon: ${lon.toFixed(5)}`;
+          }
+        } catch (e) {
+          inputGPS.value = `Lat: ${lat.toFixed(5)}, Lon: ${lon.toFixed(5)}`;
+        }
+      },
+      () => {
+        alert("Active la ubicación GPS.");
+        inputGPS.value = "";
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }
+
+  function renderizarTabla() {
+    const tabla = document.getElementById('tablaHistorial');
+    tabla.innerHTML = "";
+    historialRegistros.slice().reverse().forEach(reg => {
+      const fila = document.createElement('tr');
+      fila.innerHTML = `
+        <td><strong>${reg.zona}</strong></td>
+        <td>${reg.nombre} ${reg.apellido}</td>
+        <td>${reg.fecha} ${reg.hora}</td>
+        <td>${reg.ubicacion}</td>
+        <td>${reg.observacion}</td>
+      `;
+      tabla.appendChild(fila);
+    });
+  }
+
+  function borrarHistorialSupervisor() {
+    if (prompt("Ingrese PIN de Supervisor:") === CLAVE_SUPERVISOR) {
+      if (confirm("¿Borrar todo el historial y reiniciar secuencia?")) {
+        historialRegistros = [];
+        zonaEsperadaNum = 1;
+        puntosPosiciones.forEach(p => p.escaneado = false);
+        localStorage.removeItem('historial_ronda');
+        guardarMemoriaLocal();
+        actualizarInterfazZona();
+        renderizarPuntosMapa();
+        renderizarTabla();
+      }
+    } else {
+      alert("❌ PIN Incorrecto");
+    }
+  }
+
+  function enviarWhatsApp() {
+    if (historialRegistros.length === 0) return alert("Sin registros.");
+    let texto = "📋 *REPORTE DE CONTROL DE RONDA EN TIEMPO REAL*\n\n";
+    historialRegistros.forEach(reg => {
+      texto += `📌 *${reg.zona}* | ${reg.nombre} ${reg.apellido}\n• Hora: ${reg.fecha} ${reg.hora}\n• Ubicación: ${reg.ubicacion}\n• Obs: ${reg.observacion}\n\n`;
+    });
+    window.open(`https://api.whatsapp.com/send?phone=${TELEFONO_WHATSAPP}&text=${encodeURIComponent(texto)}`, '_blank');
+  }
+
+  function enviarEmail() {
+    if (historialRegistros.length === 0) return alert("Sin registros.");
+    let texto = "REPORTE DE CONTROL DE RONDA EN TIEMPO REAL\n\n";
+    historialRegistros.forEach(reg => {
+      texto += `📌 ${reg.zona} | ${reg.nombre} ${reg.apellido}\n• Hora: ${reg.fecha} ${reg.hora}\n• Ubicación: ${reg.ubicacion}\n• Obs: ${reg.observacion}\n\n`;
+    });
+    window.location.href = `mailto:${CORREO_GMAIL}?subject=Reporte%20Ronda&body=${encodeURIComponent(texto)}`;
+  }
+
+  function generarQRsZonas() {
+    const contenedor = document.getElementById('areaImpresion');
+    contenedor.innerHTML = "";
+    puntosPosiciones.forEach(p => {
+      const divTarjeta = document.createElement('div');
+      divTarjeta.className = 'tarjeta-qr';
+      const divQR = document.createElement('div');
+      const titulo = document.createElement('div');
+      titulo.innerText = `ZONA ${p.zona}`;
+      titulo.style.marginBottom = "5px";
+
+      divTarjeta.appendChild(titulo);
+      divTarjeta.appendChild(divQR);
+      contenedor.appendChild(divTarjeta);
+
+      new QRCode(divQR, { text: `ZONA_${p.zona}`, width: 100, height: 100 });
+    });
+  }
+
+  window.addEventListener('resize', dibujarLineasMapa);
+  inicializar();
+</script>
+
+</body>
+</html>
