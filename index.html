@@ -691,7 +691,19 @@
       alert(`Primero debe escanear el código QR de Zona ${zonaEsperadaNum}.`);
       return;
     }
-const idx = puntosPosiciones.findIndex(p => p.zona === zonaEsperadaNum);
+if (!guardiaRonda) {
+      const nombreGuardia = document.getElementById('nombre').value.trim();
+      const apellidoGuardia = document.getElementById('apellido').value.trim();
+      if (!nombreGuardia || !apellidoGuardia) {
+        alert("Ingrese nombre y apellido del guardia.");
+        return;
+      }
+      guardiaRonda = { nombre: nombreGuardia, apellido: apellidoGuardia };
+      bloquearGuardia(true);
+      localStorage.setItem('guardia_ronda_activo', JSON.stringify(guardiaRonda));
+    }
+
+    const idx = puntosPosiciones.findIndex(p => p.zona === zonaEsperadaNum);
     if (idx !== -1) puntosPosiciones[idx].escaneado = true;
 
     const registro = {
