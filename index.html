@@ -661,10 +661,16 @@
   }
 
   function detenerCamara() {
+    const reader = document.getElementById('reader');
+    if (reader) reader.style.display = 'none';
+
     if (html5QrCode) {
-      html5QrCode.stop().then(() => {
-        document.getElementById('reader').style.display = 'none';
-      }).catch(err => console.error(err));
+      try {
+        const resultado = html5QrCode.stop();
+        if (resultado && typeof resultado.catch === 'function') {
+          resultado.catch(() => {});
+        }
+      } catch (e) {}
     }
   }
 
@@ -673,9 +679,10 @@
     if (match) {
       const numZonaEscaneada = parseInt(match[1]);
       if (numZonaEscaneada === zonaEsperadaNum) {
+        if (qrEscaneadoValido) return;
         qrEscaneadoValido = true;
-        alert(`✓ QR de Zona ${numZonaEscaneada} escaneado correctamente.`);
         detenerCamara();
+        alert(`✓ QR de Zona ${numZonaEscaneada} escaneado correctamente. Ahora presione Registrar Punto de Ronda.`);
       } else {
         alert(`❌ Código equivocado. Debe escanear Zona ${zonaEsperadaNum} (Escaneó Zona ${numZonaEscaneada}).`);
       }
@@ -687,58 +694,83 @@
   document.getElementById('formRonda').addEventListener('submit', function(e) {
     e.preventDefault();
 
-    if (!qrEscaneadoValido) {
-      alert(`Primero debe escanear el código QR de Zona ${zonaEsperadaNum}.`);
-      return;
-    }
-if (!guardiaRonda) {
-      const nombreGuardia = document.getElementById('nombre').value.trim();
-      const apellidoGuardia = document.getElementById('apellido').value.trim();
-      if (!nombreGuardia || !apellidoGuardia) {
-        alert("Ingrese nombre y apellido del guardia.");
-        return;
+    try {
+      if (!qrEscaneadoValido) {
+        alert(`Primero debe escanear el código QR de Zona ${zonaEsperadaNum}.`);
+        return false;
       }
-      guardiaRonda = { nombre: nombreGuardia, apellido: apellidoGuardia };
-      bloquearGuardia(true);
-      localStorage.setItem('guardia_ronda_activo', JSON.stringify(guardiaRonda));
+
+      const nombreInput = document.getElementById('nombre');
+      const apellidoInput = document.getElementById('apellido');
+
+      if (!guardiaRonda) {
+        const nombreGuardia = nombreInput.value.trim();
+        const apellidoGuardia = apellidoInput.value.trim();
+
+        if (!nombreGuardia || !apellidoGuardia) {
+          alert("Ingrese nombre y apellido del guardia.");
+          return false;
+        }
+
+        guardiaRonda = { nombre: nombreGuardia, apellido: apellidoGuardia };
+        bloquearGuardia(true);
+      }
+
+      const zonaActual = zonaEsperadaNum;
+      const idx = puntosPosiciones.findIndex(p => Number(p.zona) === Number(zonaActual));
+
+      if (idx === -1) {
+        alert(`Error: no existe la Zona ${zonaActual} en la configuración.`);
+        return false;
+      }
+
+      puntosPosiciones[idx].escaneado = true;
+
+      const registro = {
+        zona: `Zona ${zonaActual}`,
+        nombre: guardiaRonda.nombre,
+        apellido: guardiaRonda.apellido,
+        fecha: document.getElementById('fecha').value,
+        hora: document.getElementById('hora').value,
+        observacion: document.getElementById('observaciones').value.trim() || 'Sin novedades'
+      };
+
+      historialRegistros.push(registro);
+
+      const terminoRonda = zonaActual >= puntosPosiciones.length;
+
+      if (terminoRonda) {
+        puntosPosiciones.forEach(p => p.escaneado = false);
+        zonaEsperadaNum = 1;
+        guardiaRonda = null;
+        nombreInput.value = '';
+        apellidoInput.value = '';
+        bloquearGuardia(false);
+      } else {
+        zonaEsperadaNum = zonaActual + 1;
+      }
+
+      qrEscaneadoValido = false;
+      document.getElementById('observaciones').value = '';
+
+      actualizarInterfazZona();
+      guardarMemoriaLocal();
+      renderizarPuntosMapa();
+      renderizarTabla();
+
+      if (terminoRonda) {
+        alert(`✓ ${registro.zona} registrada. Ronda completa. Puede ingresar otro guardia.`);
+      } else {
+        alert(`✓ ${registro.zona} registrada. Siguiente: Zona ${zonaEsperadaNum}.`);
+      }
+
+      return false;
+    } catch (error) {
+      alert("Error al registrar la ronda: " + (error && error.message ? error.message : error));
+      return false;
     }
-
-    const idx = puntosPosiciones.findIndex(p => p.zona === zonaEsperadaNum);
-    if (idx !== -1) puntosPosiciones[idx].escaneado = true;
-
-    const registro = {
-      zona: `Zona ${zonaEsperadaNum}`,
-      nombre: guardiaRonda.nombre,
-      apellido: guardiaRonda.apellido,
-      fecha: document.getElementById('fecha').value,
-      hora: document.getElementById('hora').value,
-      observacion: document.getElementById('observaciones').value || 'Sin novedades'
-    };
-
-    historialRegistros.push(registro);
-
-    if (zonaEsperadaNum >= puntosPosiciones.length) {
-      alert(`¡Completó todas las zonas! La ronda ha finalizado con éxito. El mapa y la secuencia se reiniciarán automáticamente.`);
-      puntosPosiciones.forEach(p => p.escaneado = false);
-      zonaEsperadaNum = 1;
-      guardiaRonda = null;
-      document.getElementById('nombre').value = '';
-      document.getElementById('apellido').value = '';
-      bloquearGuardia(false);
-    } else {
-      zonaEsperadaNum++;
-    }
-
-    actualizarInterfazZona();
-    guardarMemoriaLocal();
-    renderizarPuntosMapa();
-    renderizarTabla();
-
-    qrEscaneadoValido = false;
-    document.getElementById('observaciones').value = '';
-
-    alert(`¡${registro.zona} registrada con éxito!`);
   });
+
 
   function renderizarTabla() {
     const tabla = document.getElementById('tablaHistorial');
