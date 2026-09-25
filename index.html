@@ -8,6 +8,10 @@
   <!-- Librerías QR -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- Firebase Realtime Database -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
+
 
   <style>
     * { box-sizing: border-box; }
@@ -344,6 +348,22 @@
   const TELEFONO_WHATSAPP = "5491112345678";
   const CORREO_GMAIL = "tudireccion@gmail.com";
 
+  const firebaseConfig = {
+    apiKey: "AIzaSyCpVGV_HaaR0aTKDfnYAcSKaucsWG8sTOo",
+    authDomain: "control-de-ronda-2.firebaseapp.com",
+    databaseURL: "https://control-de-ronda-2-default-rtdb.firebaseio.com",
+    projectId: "control-de-ronda-2",
+    storageBucket: "control-de-ronda-2.firebasestorage.app",
+    messagingSenderId: "991153774922",
+    appId: "1:991153774922:web:a1c02fb216a307aaa6e1b3",
+    measurementId: "G-NE8GSLLQY8"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  let aplicandoFirebase = false;
+
+
   let zonaEsperadaNum = 1;
   let puntosPosiciones = [];
   let esAdminDesbloqueado = false;
@@ -372,6 +392,7 @@
     setInterval(actualizarReloj, 1000);
     actualizarReloj();
     cargarMemoriaLocal();
+    conectarFirebaseTiempoReal();
   }
 
   function cargarLogo(e) {
@@ -446,6 +467,64 @@
     }
   }
 
+
+  function conectarFirebaseTiempoReal() {
+    // Config compartida: mapa, puntos y zona esperada
+    db.ref('config').on('value', (snap) => {
+      const cfg = snap.val();
+      if (!cfg) return;
+
+      aplicandoFirebase = true;
+
+      if (cfg.mapa) {
+        const img = document.getElementById('imagenMapa');
+        img.src = cfg.mapa;
+        img.style.display = 'block';
+        document.getElementById('textoSinMapa').style.display = 'none';
+      }
+
+      if (cfg.puntos) {
+        puntosPosiciones = Array.isArray(cfg.puntos)
+          ? cfg.puntos.filter(Boolean)
+          : Object.values(cfg.puntos);
+      }
+
+      if (cfg.zonaEsperada) {
+        zonaEsperadaNum = Number(cfg.zonaEsperada) || 1;
+      }
+
+      actualizarInterfazZona();
+      renderizarPuntosMapa();
+      generarQRsZonas();
+      aplicandoFirebase = false;
+    });
+
+    // Historial compartido PC <-> celular
+    db.ref('historial').on('value', (snap) => {
+      const datos = snap.val() || {};
+      historialRegistros = Object.values(datos);
+      renderizarTabla();
+      localStorage.setItem('historial_ronda', JSON.stringify(historialRegistros));
+    });
+  }
+
+  function guardarConfigFirebase() {
+    if (aplicandoFirebase) return Promise.resolve();
+
+    const mapaLocal = localStorage.getItem('mapa_imagen_b64');
+    const datos = {
+      puntos: puntosPosiciones,
+      zonaEsperada: zonaEsperadaNum
+    };
+    if (mapaLocal) datos.mapa = mapaLocal;
+
+    return db.ref('config').update(datos);
+  }
+
+  function guardarRegistroFirebase(registro) {
+    return db.ref('historial').push(registro);
+  }
+
   function actualizarInterfazZona() {
     document.getElementById('zonaRequerida').value = `Zona ${zonaEsperadaNum}`;
     document.getElementById('numSiguienteZona').innerText = puntosPosiciones.length + 1;
@@ -486,6 +565,9 @@
       img.style.display = 'block';
       document.getElementById('textoSinMapa').style.display = 'none';
       localStorage.setItem('mapa_imagen_b64', event.target.result);
+      db.ref('config/mapa').set(event.target.result).catch(err => {
+        alert("No se pudo guardar el mapa en Firebase: " + err.message);
+      });
       dibujarLineasMapa();
     };
     reader.readAsDataURL(e.target.files[0]);
@@ -501,6 +583,7 @@
     });
 
     guardarMemoriaLocal();
+    guardarConfigFirebase().catch(err => console.error("Firebase config:", err));
     actualizarInterfazZona();
     renderizarPuntosMapa();
     generarQRsZonas();
@@ -520,6 +603,7 @@
     }
 
     guardarMemoriaLocal();
+    guardarConfigFirebase().catch(err => console.error("Firebase config:", err));
     actualizarInterfazZona();
     renderizarPuntosMapa();
     generarQRsZonas();
@@ -633,6 +717,7 @@
   function detenerArrastre() {
     if (puntoArrastrandose) {
       guardarMemoriaLocal();
+      guardarConfigFirebase().catch(err => console.error("Firebase config:", err));
       puntoArrastrandose = null;
     }
     window.removeEventListener('mousemove', moverPunto);
@@ -736,6 +821,9 @@
       };
 
       historialRegistros.push(registro);
+      guardarRegistroFirebase(registro).catch(err => {
+        alert("No se pudo guardar el registro en Firebase: " + err.message);
+      });
 
       const terminoRonda = zonaActual >= puntosPosiciones.length;
 
@@ -755,6 +843,9 @@
 
       actualizarInterfazZona();
       guardarMemoriaLocal();
+      guardarConfigFirebase().catch(err => {
+        alert("La ronda se registró, pero no se pudo sincronizar la zona: " + err.message);
+      });
       renderizarPuntosMapa();
       renderizarTabla();
 
@@ -798,7 +889,9 @@
         bloquearGuardia(false);
         puntosPosiciones.forEach(p => p.escaneado = false);
         localStorage.removeItem('historial_ronda');
+        db.ref('historial').remove().catch(err => alert("Error Firebase: " + err.message));
         guardarMemoriaLocal();
+        guardarConfigFirebase().catch(err => alert("Error Firebase: " + err.message));
         actualizarInterfazZona();
         renderizarPuntosMapa();
         renderizarTabla();
@@ -851,3 +944,4 @@
 
 </body>
 </html>
+
