@@ -91,7 +91,8 @@
     .mapa-contenedor {
       position: relative;
       width: 100%;
-      height: 550px;
+      height: auto;
+      aspect-ratio: 3 / 2;
       background-color: #050811;
       border: 2px solid #00a2ff;
       border-radius: 8px;
@@ -106,7 +107,7 @@
     #imagenMapa {
       width: 100%;
       height: 100%;
-      object-fit: contain;
+      object-fit: fill;
       display: block;
       opacity: 0.85;
       pointer-events: none;
@@ -243,7 +244,7 @@
       <span id="txtLogo">SELECCIONAR LOGO</span>
       <input type="file" id="inputLogo" accept="image/*" style="display:none;" onchange="cargarLogo(event)">
     </div>
-    <h2>Control de ronda en tiempo real</h2>
+    <h2>Control de ronda en tiempo real <span style="font-size:10px;color:#00e1ff;">SYNC V3</span></h2>
     <div style="width: 70px;"></div>
   </div>
 
@@ -494,8 +495,11 @@
       }
 
       actualizarInterfazZona();
-      renderizarPuntosMapa();
-      generarQRsZonas();
+      requestAnimationFrame(() => {
+        renderizarPuntosMapa();
+        generarQRsZonas();
+        setTimeout(dibujarLineasMapa, 100);
+      });
       aplicandoFirebase = false;
     });
 
@@ -944,4 +948,3 @@
 
 </body>
 </html>
-
